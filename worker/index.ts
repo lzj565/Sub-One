@@ -1,16 +1,18 @@
 /// <reference types="@cloudflare/workers-types" />
 import { handleApiRequest } from '../lib/backend/api/handlers';
 import { handleSubRequest } from '../lib/backend/subscription/handler';
-import { Env } from '../lib/backend/types';
+import { handleCronTrigger } from '../lib/backend/cron/index';
+import type { Env } from '../lib/backend/types';
 
-// --- Cloudflare Pages Functions 主入口 ---
-export async function onRequest(context: EventContext<Env, any, any>) {
-    const { request, env, next } = context;
+interface WorkerEnv extends Env {
+    ASSETS: Fetcher;
+}
+
+async function fetchRequest(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/')) {
-        const response = await handleApiRequest(request, env);
-        return response;
+        return handleApiRequest(request, env);
     }
 
     const isStaticAsset =
@@ -25,12 +27,20 @@ export async function onRequest(context: EventContext<Env, any, any>) {
 
     if (!isStaticAsset && url.pathname !== '/') {
         try {
-            return await handleSubRequest(context);
-        } catch (err: any) {
+            return await handleSubRequest({ request, env });
+        } catch (err) {
             console.error('[Top Level Error]', err);
             return new Response(`Internal Server Error`, { status: 500 });
         }
     }
 
-    return next();
+    return env.ASSETS.fetch(request);
 }
+
+export default {
+    fetch: fetchRequest,
+    async scheduled(_controller: ScheduledController, env: WorkerEnv) {
+        const result = await handleCronTrigger(env);
+        if (!result.ok) throw new Error(`Subscription refresh failed: ${result.status}`);
+    }
+} satisfies ExportedHandler<WorkerEnv>;

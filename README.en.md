@@ -1,12 +1,12 @@
 # Sub-One Manager
 
-> 🚀 A modern network subscription management and conversion platform based on Vue 3, specifically designed for Cloudflare Pages and lightweight private containers.
+> 🚀 A modern network subscription management and conversion platform based on Vue 3, specifically designed for Cloudflare Workers and lightweight private containers.
 
 [![GitHub Release](https://img.shields.io/badge/Release-v2.0.0-blue.svg)](https://github.com/binbankm/Sub-One/releases)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5+-4FC08D?style=flat&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0+-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Cloudflare Pages](https://img.shields.io/badge/Cloudflare_Pages-Deploy-F38020?style=flat&logo=cloudflare&logoColor=white)](https://pages.cloudflare.com/)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-Deploy-F38020?style=flat&logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 [![Docker Image](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/binbankm/Sub-One/pkgs/container/sub-one)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -60,69 +60,33 @@
 
 ## 🚀 Deployment Guide
 
-Sub-One Manager supports two deployment strategies: **Cloudflare Pages (Serverless, Recommended)** and **Docker (Private VPS)**.
+Sub-One supports Cloudflare Workers and Docker.
 
-### Strategy A: Cloudflare Pages Deployment (Recommended · Free · Global CDN)
+### Strategy A: Cloudflare Workers
 
-No server required. Enjoy instant global distribution powered by Cloudflare edge network.
+Run `npm ci` and `npm run build` with Node.js 22 or newer. Run `npx wrangler dev --test-scheduled` for local development with local KV and D1.
 
-#### 1. Fork the Repository
+Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` and run `npm run deploy`. Use an account-scoped token with Workers Scripts, Workers KV Storage and D1 edit permissions. In Workers Builds, create a Worker named `sub-one`, set the build command to `npm run build`, the deploy command to `npm run deploy`, and provide the same deployment variables, with the token stored as a build secret.
 
-Click the **Fork** button in the upper right corner to copy this repository to your personal GitHub account.
+Run the following in the repository root using zsh. For a fresh installation, skip the two commented migration variables.
 
-#### 2. Create a Pages Project in Cloudflare
+```zsh
+npm ci && npm run build
 
-1. Log in to the [Cloudflare Dashboard](https://dash.cloudflare.com/).
-2. Navigate to **Workers & Pages** → **Pages**.
-3. Click **Create application** → select **Connect to Git**.
-4. Choose the forked `Sub-One` repository and set the build configurations:
-   - **Framework preset**: `Vue`
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-   - **Root directory**: Leave blank (default is repository root)
+export CLOUDFLARE_ACCOUNT_ID='your-account-id'
+read -rs 'CLOUDFLARE_API_TOKEN?Cloudflare API Token: '
+export CLOUDFLARE_API_TOKEN
+echo
 
-#### 3. Configure Storage Bindings (Crucial Step)
+# export SUB_ONE_KV_ID='existing-kv-namespace-id'
+# export SUB_ONE_D1_ID='existing-d1-database-id'
 
-The project supports KV and D1 storage backends. KV binding is mandatory for first use:
+npm run deploy
+```
 
-##### Bind KV Namespace (Required)
+Deployment creates or reuses a KV namespace and a D1 database, both named `subone`, and initializes the D1 schema. The application defaults to KV. You can switch storage in Settings.
 
-1. In the Cloudflare Dashboard, go to **Workers & Pages** → **KV**, and click **Create a namespace** (e.g., `sub-one-kv`).
-2. Return to your Pages project: **Settings** → **Functions** → **KV namespace bindings** → click **Add binding**:
-   - **Variable name**: `SUB_ONE_KV` (*must be exact uppercase*)
-   - **KV namespace**: Select the namespace you just created.
-
-##### Bind D1 Database (Optional, ideal for large node collections and SQL queries)
-
-1. Navigate to **Workers & Pages** → **D1** → **Create database** named `sub-one-d1`.
-2. In the database's **Console** tab, execute the SQL script in `db/init.sql` to initialize schema:
-
-   ```sql
-   CREATE TABLE IF NOT EXISTS storage (
-       key TEXT PRIMARY KEY,
-       value TEXT NOT NULL,
-       updated_at INTEGER NOT NULL
-   );
-   CREATE INDEX IF NOT EXISTS idx_updated_at ON storage(updated_at);
-   CREATE INDEX IF NOT EXISTS idx_key_prefix ON storage(key);
-   INSERT OR REPLACE INTO storage (key, value, updated_at)
-   VALUES ('_db_initialized', '"true"', strftime('%s', 'now') * 1000);
-   ```
-
-3. Return to Pages project **Settings** → **Functions** → **D1 database bindings** → click **Add binding**:
-   - **Variable name**: `SUB_ONE_D1` (*must be exact uppercase*)
-   - **D1 database**: Select your created database.
-
-> [!TIP]
-> Once configured, you can seamlessly switch between KV and D1 anytime in **Settings** → **Storage Backend**. All subscriptions, profiles, and accounts will be automatically migrated without manual exports!
-
-#### 4. First Visit & Initialization
-
-1. Once deployment succeeds, open your assigned `https://your-project.pages.dev` domain.
-2. The system will detect first-time launch and automatically direct you to the **Create Administrator Account** page.
-3. Choose a custom username and password (at least 6 characters) and submit to access the dashboard.
-
----
+For a Pages migration, set `SUB_ONE_KV_ID` and, if applicable, `SUB_ONE_D1_ID` to your existing resource IDs before the first deployment and keep them configured for later deployments. Restore any application secrets such as `ADMIN_PASSWORD` on the Worker. Verify login, existing data and subscription links on the Workers URL before moving the custom domain. On a fresh deployment, follow the first-visit prompt to create the administrator account.
 
 ### Strategy B: Docker / VPS Deployment (Lightweight Container)
 
@@ -224,7 +188,7 @@ Sub-One/
 │       ├── services/          # Storage and infrastructure services (KV, D1, Auth, Notification)
 │       └── utils/             # Backend utilities
 ├── docker/                     # Container adapter script (Node.js runtime simulator)
-├── functions/                  # Cloudflare Pages Functions entry points
+├── worker/                     # Cloudflare Workers entry points
 ├── images/                     # Documentation screenshots
 ├── db/                         # D1 database initialization scripts (init.sql)
 ├── wrangler.toml               # Cloudflare configuration file
@@ -251,17 +215,17 @@ Sub-One/
 <summary>❓ Encountering issues? Click to expand common solutions</summary>
 
 1. **Initialization screen does not appear on first visit?**
-   - Verify that your Cloudflare Pages KV namespace binding variable name is strictly `SUB_ONE_KV`.
+   - Verify that your Cloudflare Workers KV namespace binding variable name is strictly `SUB_ONE_KV`.
    - Open browser developer tools (F12) and inspect the Console/Network tabs for errors.
    - Clear your browser cache or visit in Incognito mode.
 
 2. **Forgot administrator username or password?**
-   - **Cloudflare Pages**: In the Cloudflare Dashboard → **KV** → select your namespace, search and delete the key `sub_one_users_v1`, then refresh your application to re-initialize your admin account.
+   - **Cloudflare Workers**: In the Cloudflare Dashboard → **KV** → select your namespace, search and delete the key `sub_one_users_v1`, then refresh your application to re-initialize your admin account.
    - **Docker Deployment**: Remove the user key from the mounted `data/` volume or rename `kv.json` to trigger onboarding.
 
 3. **Errors when switching from KV to D1?**
    - Ensure you have executed `db/init.sql` in the D1 database console.
-   - Double check that the Pages Function binding variable name is set strictly to `SUB_ONE_D1`.
+   - Double check that the Workers binding variable name is set strictly to `SUB_ONE_D1`.
 
 4. **Build failed during deployment?**
    - Make sure your Node.js runtime version is `>= 18.0.0`.

@@ -248,7 +248,7 @@ async function convertViaExternalApi(
 }
 
 export async function handleSubRequest(
-    context: EventContext<Env, string, unknown>
+    context: { request: Request; env: Env }
 ): Promise<Response> {
     const { request, env } = context;
     const url = new URL(request.url);

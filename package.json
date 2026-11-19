@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "deploy": "node scripts/deploy-worker.mjs",
         "server": "tsx docker/docker-server.ts",
         "preview": "vite preview",
         "type-check": "vue-tsc --noEmit",
@@ -54,6 +55,7 @@
         "vite": "^7.1.2",
         "vitest": "^4.0.16",
         "vue-eslint-parser": "^9.4.2",
-        "vue-tsc": "^3.1.5"
+        "vue-tsc": "^3.1.5",
+        "wrangler": "4.45.0"
     }
 }

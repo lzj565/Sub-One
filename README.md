@@ -1,12 +1,12 @@
 # Sub-One Manager
 
-> 🚀 基于 Vue 3 的现代化网络订阅管理与转换平台，专为 Cloudflare Pages 与轻量私有化容器打造。
+> 🚀 基于 Vue 3 的现代化网络订阅管理与转换平台，专为 Cloudflare Workers 与轻量私有化容器打造。
 
 [![GitHub Release](https://img.shields.io/badge/Release-v2.0.0-blue.svg)](https://github.com/binbankm/Sub-One/releases)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5+-4FC08D?style=flat&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0+-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Cloudflare Pages](https://img.shields.io/badge/Cloudflare_Pages-Deploy-F38020?style=flat&logo=cloudflare&logoColor=white)](https://pages.cloudflare.com/)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-Deploy-F38020?style=flat&logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 [![Docker Image](https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/binbankm/Sub-One/pkgs/container/sub-one)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -60,69 +60,33 @@
 
 ## 🚀 部署指南
 
-本项目支持 **Cloudflare Pages（云端无服务器，推荐）** 与 **Docker（私有 VPS）** 两种部署方案。
+本项目支持 Cloudflare Workers 和 Docker。
 
-### 方案 A：Cloudflare Pages 部署（推荐·全免费·全球加速）
+### 方案 A：Cloudflare Workers 部署
 
-无需购买服务器，利用 Cloudflare 边缘网络全球极速分发。
+使用 Node.js 22 或更新版本，运行 `npm ci` 和 `npm run build`。本地预览可运行 `npx wrangler dev --test-scheduled`，使用本地 KV 和 D1。
 
-#### 1. Fork 仓库
+配置 `CLOUDFLARE_ACCOUNT_ID` 和 `CLOUDFLARE_API_TOKEN` 后运行 `npm run deploy`。Token 需要目标账号的 Workers Scripts、Workers KV Storage 和 D1 编辑权限。使用 Workers Builds 时，创建名为 `sub-one` 的 Worker，构建命令填 `npm run build`，部署命令填 `npm run deploy`，并配置相同的部署变量，将 Token 保存为构建密钥。
 
-点击项目右上角的 **Fork** 按钮，将本仓库复制到您的个人 GitHub 账号下。
+在仓库根目录用 zsh 执行以下命令。全新安装可跳过注释中的迁移变量。
 
-#### 2. 在 Cloudflare 中创建 Pages 项目
+```zsh
+npm ci && npm run build
 
-1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)。
-2. 导航至 **Workers & Pages** → **Pages**。
-3. 点击 **创建应用程序** → 选择 **连接到 Git**。
-4. 选择刚刚 Fork 的 `Sub-One` 仓库，并在构建配置中设置：
-   - **框架预设**：`Vue`
-   - **构建命令**：`npm run build`
-   - **构建输出目录**：`dist`
-   - **根目录**：留空即可（默认为根路径）
+export CLOUDFLARE_ACCOUNT_ID='your-account-id'
+read -rs 'CLOUDFLARE_API_TOKEN?Cloudflare API Token: '
+export CLOUDFLARE_API_TOKEN
+echo
 
-#### 3. 配置存储绑定（关键步骤）
+# export SUB_ONE_KV_ID='existing-kv-namespace-id'
+# export SUB_ONE_D1_ID='existing-d1-database-id'
 
-本项目支持 KV 与 D1 存储，初次使用必须绑定 KV：
+npm run deploy
+```
 
-##### 绑定 KV 命名空间（必需）
+部署自动创建或复用名为 `subone` 的 KV 命名空间和 D1 数据库，并初始化 D1 表结构。应用默认使用 KV，可在后台设置中切换存储后端。
 
-1. 在 Cloudflare 控制台中进入 **Workers & Pages** → **KV**，点击 **创建命名空间**，填写名称（例如 `sub-one-kv`）。
-2. 返回刚创建的 Pages 项目，进入 **设置** → **函数** → **KV 命名空间绑定** → 点击 **添加绑定**：
-   - **变量名称**：`SUB_ONE_KV`（*必须严格大写且完全一致*）
-   - **KV 命名空间**：选择刚才创建的命名空间。
-
-##### 绑定 D1 数据库（可选，适合海量节点与 SQL 查询需求）
-
-1. 进入 **Workers & Pages** → **D1** → **创建数据库**，数据库名称填 `sub-one-d1`。
-2. 在该数据库的 **控制台 (Console)** 标签页中执行 `db/init.sql` 中的 SQL 脚本以初始化数据表结构：
-
-   ```sql
-   CREATE TABLE IF NOT EXISTS storage (
-       key TEXT PRIMARY KEY,
-       value TEXT NOT NULL,
-       updated_at INTEGER NOT NULL
-   );
-   CREATE INDEX IF NOT EXISTS idx_updated_at ON storage(updated_at);
-   CREATE INDEX IF NOT EXISTS idx_key_prefix ON storage(key);
-   INSERT OR REPLACE INTO storage (key, value, updated_at)
-   VALUES ('_db_initialized', '"true"', strftime('%s', 'now') * 1000);
-   ```
-
-3. 返回 Pages 项目的 **设置** → **函数** → **D1 数据库绑定** → 点击 **添加绑定**：
-   - **变量名称**：`SUB_ONE_D1`（*必须完全一致*）
-   - **D1 数据库**：选择刚创建的 D1 数据库。
-
-> [!TIP]
-> 配置完成后，在管理后台的 **设置** → **存储后端** 即可随时在 KV 与 D1 之间自由切换。切换时系统会自动迁移全部订阅源、配置与用户数据，无需人工导表！
-
-#### 4. 首次访问与初始化
-
-1. 部署完成后，访问分配的 `https://your-project.pages.dev` 域名。
-2. 系统检测到首次运行，将自动引导进入 **创建管理员账号** 页面。
-3. 自定义用户名与密码（至少 6 位），点击提交即可直接登录管理系统。
-
----
+从 Pages 迁移时，首次部署前将 `SUB_ONE_KV_ID` 和已使用的 `SUB_ONE_D1_ID` 设为原资源 ID，后续部署继续保留这些变量。在 Worker 上重新设置此前使用的应用密钥，例如 `ADMIN_PASSWORD`。先通过 Workers 地址验证登录、已有数据和订阅链接，再切换自定义域名。全新部署首次访问时按页面提示创建管理员账号。
 
 ### 方案 B：Docker / VPS 部署（轻量容器化）
 
@@ -224,7 +188,7 @@ Sub-One/
 │       ├── services/          # 数据与存储驱动 (KV, D1, JSON, Auth, Notification)
 │       └── utils/             # 后端辅助工具库
 ├── docker/                     # 容器化适配脚本 (内置 Node.js 本地模拟环境)
-├── functions/                  # Cloudflare Pages Functions 接口入口
+├── worker/                     # Cloudflare Workers 接口入口
 ├── images/                     # 文档演示截图
 ├── db/                         # D1 数据库初始化脚本 (init.sql)
 ├── wrangler.toml               # Cloudflare 配置文件
@@ -251,17 +215,17 @@ Sub-One/
 <summary>❓ 遇到问题？点击展开常见解决方案</summary>
 
 1. **首次部署打开后没有出现初始化界面？**
-   - 检查 Cloudflare Pages 项目中环境变量/命名空间绑定变量名是否严格为 `SUB_ONE_KV`。
+   - 检查 Cloudflare Workers 项目中环境变量/命名空间绑定变量名是否严格为 `SUB_ONE_KV`。
    - 打开浏览器开发者工具（F12），检查控制台网络请求是否有报错。
    - 清除浏览器缓存或在无痕模式下访问。
 
 2. **忘记管理员用户名或密码怎么办？**
-   - **Cloudflare Pages**：进入 Cloudflare 控制台 → **KV** → 选择您的命名空间，搜索并删除键名为 `sub_one_users_v1` 的数据项，刷新页面即可重新初始化管理员账号。
+   - **Cloudflare Workers**：进入 Cloudflare 控制台 → **KV** → 选择您的命名空间，搜索并删除键名为 `sub_one_users_v1` 的数据项，刷新页面即可重新初始化管理员账号。
    - **Docker 部署**：删除挂载目录 `data/` 下对应的用户信息键值或直接重命名 `kv.json` 即可重新初始化。
 
 3. **从 KV 切换至 D1 数据库报错？**
    - 确认是否已在 D1 控制台完整执行过 `db/init.sql` 初始化语句。
-   - 确认 Pages 项目函数绑定中变量名称是否严格为 `SUB_ONE_D1`。
+   - 确认 Workers 项目绑定中变量名称是否严格为 `SUB_ONE_D1`。
 
 4. **构建编译失败 (Build Error)？**
    - 请确保 Node.js 版本 `>= 18.0.0`。

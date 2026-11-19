@@ -38,3 +38,4 @@ test-*.yml
 *.test.yml
 /data/
 kv.json
+.wrangler-deploy-*/

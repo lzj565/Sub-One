@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_key_prefix ON storage(key);
 
 -- 3. 插入初始化标记
 -- 该记录用于标识数据库已成功初始化，便于调试和验证
-INSERT OR REPLACE INTO storage (key, value, updated_at)
+INSERT OR IGNORE INTO storage (key, value, updated_at)
 VALUES ('_db_initialized', '"true"', strftime('%s', 'now') * 1000);
 
 -- ============================================

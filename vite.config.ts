@@ -20,7 +20,6 @@ try {
     commitHash = execSync('git rev-parse --short HEAD').toString().trim();
 } catch {
     commitHash = (
-        process.env.CF_PAGES_COMMIT_SHA ||
         process.env.GITHUB_SHA ||
         process.env.COMMIT_SHA ||
         'dev'

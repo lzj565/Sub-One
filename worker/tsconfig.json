@@ -8,7 +8,9 @@
         "strict": true,
         "noImplicitAny": false,
         "noEmit": true,
+        "skipLibCheck": true,
         "allowJs": true
     },
+    "exclude": ["../lib/**/__tests__/**"],
     "include": ["**/*.ts", "**/*.js", "../lib/**/*"]
 }
